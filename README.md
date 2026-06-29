@@ -59,3 +59,28 @@ docker compose up -d
 docker exec -it synapse register_new_matrix_user -u "ЛОГИН" -p "ПАРОЛЬ" -c /data/homeserver.yaml
 ```
 Для выдачи прав администратора добавьте флаг `-a --admin`.
+
+## Диагностика сервера
+
+Для проверки доступности и корректной работы компонентов выполните на сервере следующие команды.
+
+1. Проверка статуса контейнеров (все должны быть Up):
+```bash
+docker compose ps
+```
+2. Проверка открытых портов Nginx (должен слушаться порт 4443 или 443):
+```bash
+docker port nginx
+```
+3. Локальная проверка ответа от интерфейса Element (ожидается HTTP/2 200):
+```bash
+curl -s -k -H "Host: element-ВАШ_ДОМЕН.duckdns.org" -I https://localhost:4443 | grep HTTP
+```
+4. Локальная проверка ответа от сервера Matrix (ожидается JSON со списком поддерживаемых версий протокола):
+```bash
+curl -s -k -H "Host: matrix-ВАШ_ДОМЕН.duckdns.org" https://localhost:4443/_matrix/client/versions
+```
+5. Просмотр критических ошибок в логах Nginx за последнюю минуту:
+```bash
+docker compose logs --since 1m nginx | grep -i "emerg"
+```
