@@ -1,34 +1,22 @@
 server {
     listen 80;
+    listen [::]:80;
     server_name ${MATRIX_SUBDOMAIN} ${ELEMENT_SUBDOMAIN};
-    
-    # For Let's Encrypt / Certbot
-    location /.well-known/acme-challenge/ {
-        root /var/www/certbot;
-    }
 
     location / {
-        return 301 https://$host$request_uri;
+        return 301 https://$host:4443$request_uri;
     }
 }
 
 server {
     listen 443 ssl http2;
+    listen [::]:443 ssl http2;
     server_name ${MATRIX_SUBDOMAIN};
 
-    # Note: Replace paths after generating Let's Encrypt certificates
     ssl_certificate /etc/letsencrypt/live/${MATRIX_SUBDOMAIN}/fullchain.pem;
     ssl_certificate_key /etc/letsencrypt/live/${MATRIX_SUBDOMAIN}/privkey.pem;
 
-    location /_matrix {
-        proxy_pass http://synapse:8008;
-        proxy_set_header X-Forwarded-For $remote_addr;
-        proxy_set_header X-Forwarded-Proto $scheme;
-        proxy_set_header Host $host;
-        client_max_body_size 50M;
-    }
-
-    location /_synapse/client {
+    location ~* ^(\/_matrix|\/_synapse\/client) {
         proxy_pass http://synapse:8008;
         proxy_set_header X-Forwarded-For $remote_addr;
         proxy_set_header X-Forwarded-Proto $scheme;
@@ -39,10 +27,11 @@ server {
 
 server {
     listen 443 ssl http2;
+    listen [::]:443 ssl http2;
     server_name ${ELEMENT_SUBDOMAIN};
 
-    ssl_certificate /etc/letsencrypt/live/${ELEMENT_SUBDOMAIN}/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/${ELEMENT_SUBDOMAIN}/privkey.pem;
+    ssl_certificate /etc/letsencrypt/live/${MATRIX_SUBDOMAIN}/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/${MATRIX_SUBDOMAIN}/privkey.pem;
 
     location / {
         proxy_pass http://element-web:80;

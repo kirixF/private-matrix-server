@@ -1,124 +1,61 @@
-# Private Matrix Server (Synapse)
+# Приватный мессенджер Matrix (Synapse + Element)
 
-Этот репозиторий содержит всё необходимое для развертывания полностью приватного Matrix-сервера (Synapse) с Element Web и Nginx в качестве реверс-прокси, предназначенного для закрытой группы пользователей (без федерации).
+Руководство по развертыванию сервера Matrix.
 
-## 1. Подготовка и переменные окружения
+## Требования
+* ОС: Ubuntu 22.04 или 24.04.
+* Характеристики: от 2 ГБ ОЗУ, от 2 ядер CPU, от 20 ГБ дискового пространства.
+* Два домена (например, через DuckDNS) с A-записями, указывающими на IP-адрес сервера.
 
-Сначала скопируйте файл примера переменных окружения и заполните его:
+## Установка
 
+1. Подключитесь к серверу по SSH.
+2. Установите необходимые пакеты:
 ```bash
-cp .env.example .env
-nano .env
+apt update && apt upgrade -y
+apt install -y docker.io docker-compose-v2 ufw certbot
 ```
-
-Вам необходимо заполнить следующие переменные:
-- `SYNAPSE_SERVER_NAME`: Домен вашего сервера (например, `example.com`).
-- `POSTGRES_PASSWORD`: Надежный пароль для базы данных PostgreSQL.
-- `REGISTRATION_SHARED_SECRET`: Секретный ключ для регистрации пользователей (создайте с помощью `pwgen -s 64 1` или `openssl rand -hex 32`).
-- `DOMAIN`: Ваш основной домен (например, `example.com`).
-- `MATRIX_SUBDOMAIN`: Поддомен для API Matrix (например, `matrix.example.com`).
-- `ELEMENT_SUBDOMAIN`: Поддомен для веб-клиента Element (например, `element.example.com`).
-
-## 2. Генерация начального конфигурационного файла
-
-Перед первым запуском необходимо сгенерировать `homeserver.yaml`. Выполните следующую команду на сервере:
-
+3. Настройте фаервол:
 ```bash
-# Загрузка .env переменных
+ufw allow 22/tcp
+ufw allow 80/tcp
+ufw allow 443/tcp
+ufw allow 4443/tcp
+ufw enable
+```
+4. Получите SSL-сертификаты:
+```bash
+certbot certonly --standalone -d matrix-ВАШ_ДОМЕН.duckdns.org -d element-ВАШ_ДОМЕН.duckdns.org
+```
+5. Подготовьте директорию проекта:
+```bash
+mkdir -p ~/private-matrix-server/synapse-data
+cd ~/private-matrix-server
+```
+6. Скопируйте файлы из этого репозитория (`docker-compose.yml`, `.env.example`, `nginx/templates/matrix.conf.template`) в созданную директорию. Переименуйте `.env.example` в `.env` и укажите в нем свои данные.
+7. Сгенерируйте конфигурацию Synapse:
+```bash
 set -a; source .env; set +a
-
 docker run -it --rm \
     -v $(pwd)/synapse-data:/data \
     -e SYNAPSE_SERVER_NAME=$SYNAPSE_SERVER_NAME \
     -e SYNAPSE_REPORT_STATS=no \
     matrixdotorg/synapse:latest generate
 ```
-
-### Настройка приватности и ограничений
-После генерации откройте файл `synapse-data/homeserver.yaml` и внесите следующие изменения:
-
-1. **Отключение регистрации**:
-   ```yaml
-   enable_registration: false
-   ```
-
-2. **Отключение федерации** (сервер будет полностью изолирован):
-   ```yaml
-   federation_domain_whitelist: []
-   ```
-
-3. **Лимиты загрузки медиа** (50MB) и URL-превью:
-   ```yaml
-   max_upload_size: "50M"
-   url_preview_enabled: true
-   ```
-   *(Также может потребоваться раскомментировать `url_preview_ip_range_blacklist` для безопасности)*
-
-4. **Включение E2E шифрования** для новых комнат:
-   ```yaml
-   encryption_enabled_by_default_for_room_type: "all"
-   ```
-
-5. **Настройка базы данных** (вместо sqlite):
-   Найдите блок `database` и замените его на PostgreSQL:
-   ```yaml
-   database:
-     name: psycopg2
-     args:
-       user: synapse
-       password: "ВАШ_POSTGRES_PASSWORD_ИЗ_.ENV"
-       database: synapse
-       host: postgres
-       cp_min: 5
-       cp_max: 10
-   ```
-
-## 3. Первый запуск
-
-После настройки конфигов и получения SSL-сертификатов (Certbot/Let's Encrypt), запустите контейнеры в фоновом режиме:
-
+8. В файле `synapse-data/homeserver.yaml` добавьте строку `allow_unsafe_locale: true` в блок `database` (на одном уровне с `name: psycopg2`). Измените параметры для безопасности:
+```yaml
+enable_registration: false
+encryption_enabled_by_default_for_room_type: "all"
+```
+9. Запустите контейнеры:
 ```bash
 docker compose up -d
 ```
 
-*(Примечание: перед запуском Nginx убедитесь, что сертификаты для `MATRIX_SUBDOMAIN` и `ELEMENT_SUBDOMAIN` сгенерированы. Вы можете временно закомментировать SSL секции в Nginx и запустить certbot через webroot)*
+## Управление пользователями
 
-## 4. Проверка работоспособности
-
-Чтобы убедиться, что Synapse работает корректно, выполните запрос:
-
+Открытая регистрация отключена. Для создания профиля используйте команду:
 ```bash
-curl https://matrix.example.com/_matrix/client/versions
+docker exec -it synapse register_new_matrix_user -u "ЛОГИН" -p "ПАРОЛЬ" -c /data/homeserver.yaml
 ```
-Если в ответ приходит JSON со списком поддерживаемых версий, значит сервер успешно запущен.
-
-## 5. Создание администратора и пользователей
-
-Регистрация открыта только из командной строки. Чтобы создать вашего **первого пользователя-администратора**, используйте следующую точную команду:
-
-```bash
-docker exec -it synapse register_new_matrix_user -u "your_admin_username" -p "your_secure_password" -c /data/homeserver.yaml -a --admin
-```
-
-Для создания **обычных пользователей** вы можете использовать встроенный скрипт:
-
-```bash
-bash scripts/add_user.sh "username" "password"
-```
-
-## 6. Подключение через Element Web
-
-После развертывания перейдите по адресу вашего Element (например, `https://element.example.com`).
-1. Нажмите "Войти" (Sign In).
-2. Нажмите "Изменить" (Edit) возле адреса сервера (Homeserver).
-3. Введите адрес вашего Matrix API (например, `https://matrix.example.com`).
-4. Введите созданные логин и пароль.
-
-## 7. Бэкапы
-
-В репозитории есть скрипт для бэкапа базы данных и медиа-файлов:
-
-```bash
-bash scripts/backup.sh
-```
-Он создаст архив со всем необходимым в папке `./backups/`.
+Для выдачи прав администратора добавьте флаг `-a --admin`.
