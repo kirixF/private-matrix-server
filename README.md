@@ -119,3 +119,42 @@ crontab -e
 ```cron
 0 3 * * * certbot renew --quiet && cd ~/private-matrix-server && docker compose exec nginx nginx -s reload
 ```
+
+## Защита от брутфорса (fail2ban)
+
+Для автоматической блокировки IP-адресов при неудачных попытках входа в Matrix используется `fail2ban`, работающий на хосте и анализирующий логи Nginx.
+
+1. Установите fail2ban:
+```bash
+apt install -y fail2ban
+```
+2. Скопируйте конфигурацию из репозитория:
+```bash
+cp fail2ban/jail.local /etc/fail2ban/jail.local
+cp fail2ban/filter.d/matrix-auth.conf /etc/fail2ban/filter.d/
+```
+3. Перезапустите fail2ban:
+```bash
+systemctl restart fail2ban
+```
+4. Проверьте, что jail активен:
+```bash
+fail2ban-client status matrix-auth
+```
+
+*Примечание: логи Nginx пробрасываются на хост через volume `./nginx/logs:/var/log/nginx` в `docker-compose.yml`. После обновления docker-compose необходимо пересоздать контейнер nginx:*
+```bash
+docker compose up -d nginx
+```
+
+## Автоматизация бэкапов
+
+Скрипт `scripts/backup.sh` **требует** наличия `BACKUP_PASSWORD` в `.env` — без него бэкап не будет создан (защита от хранения незашифрованных данных).
+
+Для ежедневного автоматического запуска добавьте задачу в crontab:
+```bash
+crontab -e
+```
+```cron
+0 3 * * * cd ~/private-matrix-server && ./scripts/backup.sh >> /var/log/matrix-backup.log 2>&1
+```
