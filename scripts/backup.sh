@@ -28,17 +28,18 @@ chmod 600 "$BACKUP_DIR/matrix_backup_$DATE.tar.gz"
 # Clean up intermediate files
 rm "$BACKUP_DIR/db_$DATE.sql" "$BACKUP_DIR/media_$DATE.tar.gz"
 
-# Encrypt the backup if password is provided
-if [ -n "$BACKUP_PASSWORD" ]; then
-    echo "Encrypting backup..."
-    gpg --symmetric --cipher-algo AES256 --batch --passphrase "$BACKUP_PASSWORD" -o "$BACKUP_DIR/matrix_backup_$DATE.tar.gz.gpg" "$BACKUP_DIR/matrix_backup_$DATE.tar.gz"
-    chmod 600 "$BACKUP_DIR/matrix_backup_$DATE.tar.gz.gpg"
-    rm "$BACKUP_DIR/matrix_backup_$DATE.tar.gz"
-    echo "Backup completed and encrypted: $BACKUP_DIR/matrix_backup_$DATE.tar.gz.gpg"
-else
-    echo "WARNING: BACKUP_PASSWORD is not set in .env. Backup is saved unencrypted."
-    echo "Backup completed successfully: $BACKUP_DIR/matrix_backup_$DATE.tar.gz"
+# Abort if no encryption password is set
+if [ -z "$BACKUP_PASSWORD" ]; then
+    echo "ERROR: BACKUP_PASSWORD is not set in .env. Refusing to save an unencrypted backup."
+    rm -f "$BACKUP_DIR/matrix_backup_$DATE.tar.gz"
+    exit 1
 fi
+
+echo "Encrypting backup..."
+gpg --symmetric --cipher-algo AES256 --batch --passphrase "$BACKUP_PASSWORD" -o "$BACKUP_DIR/matrix_backup_$DATE.tar.gz.gpg" "$BACKUP_DIR/matrix_backup_$DATE.tar.gz"
+chmod 600 "$BACKUP_DIR/matrix_backup_$DATE.tar.gz.gpg"
+rm "$BACKUP_DIR/matrix_backup_$DATE.tar.gz"
+echo "Backup completed and encrypted: $BACKUP_DIR/matrix_backup_$DATE.tar.gz.gpg"
 
 # Rotate old backups (delete files older than 30 days)
 echo "Cleaning up backups older than 30 days..."
