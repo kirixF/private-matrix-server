@@ -1,6 +1,6 @@
 services:
   synapse:
-    image: matrixdotorg/synapse:latest
+    image: matrixdotorg/synapse:v1.127.0
     container_name: synapse
     restart: unless-stopped
     environment:
@@ -17,9 +17,12 @@ services:
       - ./synapse-data:/data
     depends_on:
       - postgres
+    networks:
+      - internal
+      - default
 
   postgres:
-    image: postgres:16-alpine
+    image: postgres:16.3-alpine
     container_name: synapse_postgres
     restart: unless-stopped
     environment:
@@ -28,16 +31,16 @@ services:
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
     volumes:
       - ./postgres-data:/var/lib/postgresql/data
+    networks:
+      - internal
 
   element-web:
-    image: vectorim/element-web:latest
+    image: vectorim/element-web:v1.11.96
     container_name: element-web
     restart: unless-stopped
-    ports:
-      - "8080:80"
 
   nginx:
-    image: nginx:alpine
+    image: nginx:1.27-alpine
     container_name: nginx
     restart: unless-stopped
     ports:
@@ -53,3 +56,10 @@ services:
     depends_on:
       - synapse
       - element-web
+    networks:
+      - default
+
+networks:
+  internal:
+    internal: true
+  default:
