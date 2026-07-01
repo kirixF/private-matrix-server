@@ -51,6 +51,7 @@ services:
       - ELEMENT_SUBDOMAIN=${ELEMENT_SUBDOMAIN}
     volumes:
       - ./nginx/templates:/etc/nginx/templates:ro
+      - ./nginx/logs:/var/log/nginx
       - /etc/letsencrypt:/etc/letsencrypt:ro
       - /var/www/certbot:/var/www/certbot:ro
     depends_on:

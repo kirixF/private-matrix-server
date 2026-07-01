@@ -1,0 +1,9 @@
+[matrix-auth]
+enabled = true
+port = 4443
+filter = matrix-auth
+logpath = /root/private-matrix-server/nginx/logs/access.log
+maxretry = 5
+findtime = 600
+bantime = 3600
+action = iptables-allports[name=matrix-auth]
