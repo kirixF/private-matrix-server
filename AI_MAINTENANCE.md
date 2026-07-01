@@ -68,11 +68,11 @@ docker exec -it synapse register_new_matrix_user -u "<username>" -p "<password>"
 ### Resetting a Password (Important: Shell Escaping)
 When updating a user's password directly in PostgreSQL, **always** use a heredoc or escape the `$` symbols in the hash to prevent the shell from expanding them:
 ```bash
-docker exec -i synapse_postgres psql -U synapse -d synapse <<'EOF'
+docker exec -i synapse_postgres psql -U synapse_user -d synapse <<'EOF'
 UPDATE users SET password_hash = '<HASH_HERE>' WHERE name LIKE '@<username>:%';
 EOF
 ```
-*Note: The database user is `synapse` (not postgres or synapse_user).*
+*Note: The database user is `synapse_user` (as defined in `docker-compose.yml`).*
 
 ---
 
